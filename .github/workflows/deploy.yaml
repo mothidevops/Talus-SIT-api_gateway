@@ -201,45 +201,45 @@ jobs:
         # Remove unused volumes
         sudo docker volume prune -f
 
-  switch-traffic:
-    needs: deploy-to-rhel
-    runs-on: [self-hosted, Linux, X64]
-    if: github.event_name == 'workflow_dispatch'
+  # switch-traffic:
+  #   needs: deploy-to-rhel
+  #   runs-on: [self-hosted, Linux, X64]
+  #   if: github.event_name == 'workflow_dispatch'
     
-    steps:
-    - name: Switch traffic to new deployment on RHEL
-      run: |
-        DEPLOYMENT_COLOR="${{ github.event.inputs.environment }}"
+#     steps:
+#     - name: Switch traffic to new deployment on RHEL
+#       run: |
+#         DEPLOYMENT_COLOR="${{ github.event.inputs.environment }}"
         
-        echo "Switching traffic to $DEPLOYMENT_COLOR environment"
+#         echo "Switching traffic to $DEPLOYMENT_COLOR environment"
         
-        # Update nginx to route traffic to the new deployment
-        if [[ "$DEPLOYMENT_COLOR" == "green" ]]; then
-          # Set green as primary (weight=10), blue as secondary (weight=1)
-          sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
-          sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
-          echo "Traffic switched to GREEN environment"
-        else
-          # Set blue as primary (weight=10), green as secondary (weight=1)
-          sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
-          sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
-          echo "Traffic switched to BLUE environment"
-        fi
+#         # Update nginx to route traffic to the new deployment
+#         if [[ "$DEPLOYMENT_COLOR" == "green" ]]; then
+#           # Set green as primary (weight=10), blue as secondary (weight=1)
+#           sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
+#           sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
+#           echo "Traffic switched to GREEN environment"
+#         else
+#           # Set blue as primary (weight=10), green as secondary (weight=1)
+#           sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
+#           sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
+#           echo "Traffic switched to BLUE environment"
+#         fi
 
-        # Test and reload nginx
-        sudo nginx -t
-        sudo systemctl reload nginx
+#         # Test and reload nginx
+#         sudo nginx -t
+#         sudo systemctl reload nginx
         
-        # Verify the switch
-        echo "Current nginx configuration:"
-        grep "server 127.0.0.1" /etc/nginx/conf.d/sit-api.conf
+#         # Verify the switch
+#         echo "Current nginx configuration:"
+#         grep "server 127.0.0.1" /etc/nginx/conf.d/sit-api.conf
 
 
-# name: Blue-Green Deployment - RHEL
+# # name: Blue-Green Deployment - RHEL
 
-# on:
-#   push:
-#     tags: ['v*']
+# # on:
+# #   push:
+# #     tags: ['v*']
 #   workflow_dispatch:
 #     inputs:
 #       environment:
