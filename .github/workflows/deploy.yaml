@@ -16,7 +16,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: erdipu/sit-api-gateway  # CHANGE THIS to your Docker Hub username/repo
+  IMAGE_NAME: mothidevops/sit-api-gateway  # CHANGE THIS to your Docker Hub username/repo
 
 jobs:
   build-and-test:
