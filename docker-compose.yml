@@ -1,0 +1,40 @@
+services:
+  api-gateway:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - MERCHANT_SERVICE_URL=http://merchant-service:3002
+      - CATALOG_SERVICE_URL=http://catalog-service:3003
+      - CART_SERVICE_URL=http://cart-service:3004
+      - PAYMENT_SERVICE_URL=http://payment-service:3005
+      - REPORTING_SERVICE_URL=http://reporting-service:3006
+    depends_on:
+      - redis
+    networks:
+      - sit-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - sit-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+networks:
+  sit-network:
+    driver: bridge

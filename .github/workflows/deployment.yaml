@@ -1,0 +1,340 @@
+name: Blue-Green Deployment - 2
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'blue'
+        type: choice
+        options:
+        - blue
+        - green
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: erdipu/sit-api-gateway  # CHANGE THIS to your Docker Hub username/repo
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=sha,prefix={{branch}}-
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Run tests
+      run: |
+        docker build -t app-test .
+        echo "Running tests..."
+
+  setup-rhel-docker:
+    runs-on: [self-hosted, Linux, X64]
+    steps:
+    - name: Check if Docker is installed
+      id: check-docker
+      run: |
+        if command -v docker &> /dev/null; then
+          echo "docker_installed=true" >> $GITHUB_OUTPUT
+          echo "Docker is already installed"
+        else
+          echo "docker_installed=false" >> $GITHUB_OUTPUT
+          echo "Docker needs to be installed"
+        fi
+
+    - name: Install Docker on RHEL
+      if: steps.check-docker.outputs.docker_installed == 'false'
+      run: |
+        echo "Installing Docker on RHEL..."
+        
+        # Remove any existing Docker packages
+        sudo yum remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+        
+        # Install required packages
+        sudo yum install -y yum-utils device-mapper-persistent-data lvm2
+        
+        # Add Docker repository
+        sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        
+        # Install Docker
+        sudo yum install -y docker-ce docker-ce-cli containerd.io
+        
+        # Start and enable Docker service
+        sudo systemctl start docker
+        sudo systemctl enable docker
+        
+        # Add current user to docker group
+        sudo usermod -aG docker $USER
+        
+        # Verify Docker installation
+        sudo docker --version
+
+    - name: Install Docker Compose on RHEL
+      if: steps.check-docker.outputs.docker_installed == 'false'
+      run: |
+        echo "Installing Docker Compose..."
+        
+        # Download and install Docker Compose
+        sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        
+        # Make it executable
+        sudo chmod +x /usr/local/bin/docker-compose
+        
+        # Create symbolic link
+        sudo ln -sf /usr/local/bin/docker-compose /usr/bin/docker-compose
+        
+        # Verify installation
+        docker-compose --version
+
+    - name: Configure Docker permissions
+      run: |
+        # Ensure docker socket has proper permissions
+        sudo chmod 666 /var/run/docker.sock || true
+        
+        # Reload group membership (may require new session, but we try)
+        newgrp docker || true
+
+  deploy-to-rhel:
+    needs: [build-and-test, setup-rhel-docker]
+    runs-on: [self-hosted, Linux, X64]
+    environment: 
+      name: ${{ github.event.inputs.environment || 'blue' }}
+      url: ${{ steps.deploy.outputs.deployment-url }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Verify Docker is running
+      run: |
+        sudo systemctl status docker || sudo systemctl start docker
+        docker --version
+        docker-compose --version
+
+    - name: Configure Docker environment
+      run: |
+        # Ensure Docker is running and user has permissions
+        sudo systemctl start docker
+        sudo chmod 666 /var/run/docker.sock 2>/dev/null || true
+        
+        # Test Docker access
+        docker ps
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Deploy to Docker on RHEL
+      id: deploy
+      run: |
+        set -e
+        
+        # Source the bash profile to ensure group membership is updated
+        source ~/.bashrc || true
+        
+        # Determine deployment color
+        if [[ "${{ github.event.inputs.environment }}" == "green" ]]; then
+          DEPLOYMENT_COLOR="green"
+          GATEWAY_PORT="3001"
+          REDIS_PORT="6380"
+        else
+          DEPLOYMENT_COLOR="blue"
+          GATEWAY_PORT="3000"
+          REDIS_PORT="6379"
+        fi
+
+        echo "Deploying to $DEPLOYMENT_COLOR environment on RHEL"
+        echo "deployment-url=http://$(hostname -I | awk '{print $1}'):$GATEWAY_PORT" >> $GITHUB_OUTPUT
+
+        # Create environment-specific compose file for RHEL
+        cat > docker-compose-$DEPLOYMENT_COLOR.yml << EOF
+        version: '3.8'
+
+        services:
+          api-gateway-$DEPLOYMENT_COLOR:
+            image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+            container_name: api-gateway-$DEPLOYMENT_COLOR
+            ports:
+              - "$GATEWAY_PORT:3000"
+            environment:
+              - NODE_ENV=production
+              - REDIS_HOST=redis-$DEPLOYMENT_COLOR
+              - REDIS_PORT=6379
+              - AUTH_SERVICE_URL=http://auth-service:3001
+              - MERCHANT_SERVICE_URL=http://merchant-service:3002
+              - CATALOG_SERVICE_URL=http://catalog-service:3003
+              - CART_SERVICE_URL=http://cart-service:3004
+              - PAYMENT_SERVICE_URL=http://payment-service:3005
+              - REPORTING_SERVICE_URL=http://reporting-service:3006
+            depends_on:
+              - redis-$DEPLOYMENT_COLOR
+            networks:
+              - sit-network-$DEPLOYMENT_COLOR
+            restart: unless-stopped
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+              interval: 30s
+              timeout: 10s
+              retries: 3
+
+          redis-$DEPLOYMENT_COLOR:
+            image: redis:7-alpine
+            container_name: redis-$DEPLOYMENT_COLOR
+            ports:
+              - "$REDIS_PORT:6379"
+            networks:
+              - sit-network-$DEPLOYMENT_COLOR
+            restart: unless-stopped
+            healthcheck:
+              test: ["CMD", "redis-cli", "ping"]
+              interval: 10s
+              timeout: 3s
+              retries: 3
+
+        networks:
+          sit-network-$DEPLOYMENT_COLOR:
+            driver: bridge
+        EOF
+
+        # Stop existing deployment if running
+        docker-compose -f docker-compose-$DEPLOYMENT_COLOR.yml down || true
+
+        # Pull latest image
+        docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+
+        # Start new deployment
+        docker-compose -f docker-compose-$DEPLOYMENT_COLOR.yml up -d
+
+        # Wait for service to be healthy
+        echo "Waiting for service to be healthy..."
+        for i in {1..30}; do
+          if curl -f http://localhost:$GATEWAY_PORT/health > /dev/null 2>&1; then
+            echo "Service is healthy!"
+            break
+          fi
+          echo "Waiting for service... ($i/30)"
+          sleep 10
+        done
+
+        # Final health check
+        if ! curl -f http://localhost:$GATEWAY_PORT/health/all; then
+          echo "Health check failed!"
+          exit 1
+        fi
+
+    - name: Update load balancer configuration on RHEL
+      run: |
+        DEPLOYMENT_COLOR="${{ github.event.inputs.environment || 'blue' }}"
+        
+        # Create nginx configuration for RHEL
+        sudo bash -c "cat > /etc/nginx/conf.d/sit-api.conf << 'EOF'
+        upstream sit_api_backend {
+            server 127.0.0.1:3000 weight=10; # blue
+            server 127.0.0.1:3001 weight=1;  # green
+        }
+
+        server {
+            listen 80;
+            server_name _;
+
+            location /nginx-health {
+                access_log off;
+                return 200 \"healthy\\n\";
+                add_header Content-Type text/plain;
+            }
+
+            location / {
+                proxy_pass http://sit_api_backend;
+                proxy_set_header Host \\$host;
+                proxy_set_header X-Real-IP \\$remote_addr;
+                proxy_set_header X-Forwarded-For \\$proxy_add_x_forwarded_for;
+                proxy_set_header X-Forwarded-Proto \\$scheme;
+                proxy_connect_timeout 30s;
+                proxy_send_timeout 30s;
+                proxy_read_timeout 30s;
+            }
+        }
+        EOF"
+
+        # Test nginx configuration
+        sudo nginx -t
+
+        # Reload nginx
+        sudo systemctl reload nginx
+
+    - name: Clean up old containers and images on RHEL
+      run: |
+        # Remove stopped containers
+        docker container prune -f
+        
+        # Remove unused images (keep last 5)
+        docker images --format "table {{.Repository}}\t{{.Tag}}\t{{.ID}}" | grep "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}" | tail -n +6 | awk '{print $3}' | xargs -r docker rmi -f
+        
+        # Remove unused volumes
+        docker volume prune -f
+
+  switch-traffic:
+    needs: deploy-to-rhel
+    runs-on: [self-hosted, Linux, X64]
+    if: github.event_name == 'workflow_dispatch'
+    
+    steps:
+    - name: Switch traffic to new deployment on RHEL
+      run: |
+        DEPLOYMENT_COLOR="${{ github.event.inputs.environment }}"
+        
+        echo "Switching traffic to $DEPLOYMENT_COLOR environment"
+        
+        # Update nginx to route traffic to the new deployment
+        if [[ "$DEPLOYMENT_COLOR" == "green" ]]; then
+          sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
+          sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
+          echo "Traffic switched to GREEN environment"
+        else
+          sudo sed -i 's/server 127.0.0.1:3000 weight=[0-9]*;/server 127.0.0.1:3000 weight=10;/g' /etc/nginx/conf.d/sit-api.conf
+          sudo sed -i 's/server 127.0.0.1:3001 weight=[0-9]*;/server 127.0.0.1:3001 weight=1;/g' /etc/nginx/conf.d/sit-api.conf
+          echo "Traffic switched to BLUE environment"
+        fi
+
+        sudo nginx -t
+        sudo systemctl reload nginx
+        
+        echo "Current nginx configuration:"
+        grep "server 127.0.0.1" /etc/nginx/conf.d/sit-api.conf

@@ -1,0 +1,2960 @@
+openapi: 3.0.0
+info:
+  title: SIT POS Microservices API
+  description: API Gateway for Authentication and Merchant Services
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@sitpos.com
+
+servers:
+
+  - url: https://unemotionally-unwayward-brandie.ngrok-free.dev
+    description: API Gateway (NGROK)
+  - url: http://192.168.2.106:3000
+    description: API Gateway (Local Network)
+  - url: http://localhost:3000
+    description: API Gateway (Localhost)
+  - url: http://localhost:3001
+    description: Auth Service (Development)
+  - url: http://localhost:3002
+    description: Merchant Service (Development)
+  - url: http://localhost:3003
+    description: Catalog Service (Development)
+  - url: http://localhost:3004
+    description: Cart Service (Development)
+
+tags:
+  - name: Authentication
+    description: OTP, PIN, and token management endpoints
+  - name: Merchants
+    description: Merchant management endpoints
+  - name: Devices
+    description: Device management endpoints
+  - name: Webhooks
+    description: Webhook handling endpoints
+  - name: Catalog - Categories
+    description: Category management endpoints
+  - name: Catalog - Items
+    description: Catalog item management endpoints
+  - name: Catalog - Modifiers
+    description: Modifier group management endpoints
+  - name: Catalog - Discounts
+    description: Discount management endpoints
+  - name: Catalog - Options
+    description: Options management endpoints
+  - name: Cart
+    description: Shopping cart management endpoints
+
+components:
+  securitySchemes:
+    ServiceToken:
+      type: apiKey
+      in: header
+      name: X-Service-Token
+      description: |
+          Service-to-service authentication token.
+ 
+          **For Swagger Testing, use this token:**
+          ```eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzZXJ2aWNlIjoic3dhZ2dlci10ZXN0IiwidHlwZSI6InNlcnZpY2UtdG8tc2VydmljZSIsImlhdCI6MTc1OTk4NjkyNywiZXhwIjoxNzYwMDczMzI3fQ.4PwIvt746-tRzaT3-EoItg5kvAElv73xwLXjnbL1YvU```
+ 
+          Paste this token below and click on "Authorize" button below.
+
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: Error message
+
+    OTPSendRequest:
+      type: object
+      required:
+        - phone
+      properties:
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          example: "+1234567890"
+        purpose:
+          type: string
+          enum: [login, signup, reset_password, verify_phone]
+          example: "login"
+
+    OTPVerifyRequest:
+      type: object
+      required:
+        - phone
+        - otp
+      properties:
+        phone:
+          type: string
+          pattern: '^\+?[1-9]\d{1,14}$'
+          example: "+1234567890"
+        otp:
+          type: string
+          pattern: '^\d{6}$'
+          example: "123456"
+        deviceId:
+          type: string
+          example: "DEVICE_001"
+
+    SetupPINRequest:
+      type: object
+      required:
+        - userId
+        - merchantId
+        - pin
+      properties:
+        userId:
+          type: string
+          example: "USER_001"
+        merchantId:
+          type: string
+          example: "MERCH_001"
+        pin:
+          type: string
+          pattern: '^\d{4,6}$'
+          example: "1234"
+
+    VerifyPINRequest:
+      type: object
+      required:
+        - userId
+        - merchantId
+        - pin
+        - deviceId
+      properties:
+        userId:
+          type: string
+          example: "USER_001"
+        merchantId:
+          type: string
+          example: "MERCH_001"
+        pin:
+          type: string
+          pattern: '^\d{4,6}$'
+          example: "1234"
+        deviceId:
+          type: string
+          example: "DEVICE_001"
+
+    ChangePINRequest:
+      type: object
+      required:
+        - currentPin
+        - newPin
+      properties:
+        currentPin:
+          type: string
+          pattern: '^\d{4,6}$'
+          example: "1234"
+        newPin:
+          type: string
+          pattern: '^\d{4,6}$'
+          example: "5678"
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+    CreateUserRequest:
+      type: object
+      required:
+        - userId
+        - merchantId
+      properties:
+        userId:
+          type: string
+          example: "USER_001"
+        merchantId:
+          type: string
+          example: "MERCH_001"
+        email:
+          type: string
+          format: email
+          example: "user@example.com"
+        role:
+          type: string
+          example: "owner"
+
+    Merchant:
+      type: object
+      required:
+        - merchantId
+        - businessInfo
+      properties:
+        merchantId:
+          type: string
+          example: "MERCH_001"
+        businessInfo:
+          type: object
+          required:
+            - legalName
+          properties:
+            legalName:
+              type: string
+              example: "Test Coffee Shop LLC"
+            dbaName:
+              type: string
+              example: "Joe's Coffee"
+            businessType:
+              type: string
+              example: "LLC"
+            industry:
+              type: string
+              example: "Food & Beverage"
+            taxId:
+              type: string
+              example: "12-3456789"
+        address:
+          type: object
+          properties:
+            street:
+              type: string
+              example: "123 Main Street"
+            city:
+              type: string
+              example: "San Francisco"
+            state:
+              type: string
+              example: "CA"
+            zipCode:
+              type: string
+              example: "94102"
+            country:
+              type: string
+              example: "US"
+              default: "US"
+        contact:
+          type: object
+          properties:
+            primaryPhone:
+              type: string
+              example: "+14155551234"
+            primaryEmail:
+              type: string
+              format: email
+              example: "contact@joescoffee.com"
+        owner:
+          type: object
+          properties:
+            firstName:
+              type: string
+              example: "Joe"
+            lastName:
+              type: string
+              example: "Smith"
+            email:
+              type: string
+              format: email
+              example: "joe@joescoffee.com"
+            phone:
+              type: string
+              example: "+14155551234"
+        status:
+          type: string
+          enum: [pending, active, inactive, suspended]
+          default: pending
+          example: "active"
+
+    OptionValue:
+      type: object
+      required:
+        - name
+      properties:
+        _id:
+          type: string
+          description: Option value ID (auto-generated)
+          example: "68e77218464af6dae8a60ca1"
+        name:
+          type: string
+          description: Option value name (e.g., Small, Medium, Large)
+          maxLength: 30
+          example: "Medium"
+        sku: 
+            type: 'string'
+            description: 'SKU (Stock Keeping Unit) for the option value'
+            maxLength: 30
+            example: 'SKU-MEDIUM'
+        order:
+          type: number
+          description: Display order for sorting
+          default: 0
+          example: 2
+        price_adjustment:
+          type: number
+          description: Price adjustment amount (positive values only)
+          default: 0
+          minimum: 0
+          example: 20
+        is_active:
+          type: boolean
+          description: Whether this specific value is active
+          default: true
+          example: true
+
+    Option:
+      type: object
+      required:
+        - merchant_id
+        - name
+        - values
+      properties:
+        _id:
+          type: string
+          example: "68e77218464af6dae8a60ca0"
+        merchant_id:
+          type: string
+          example: "68e39b604712fd48feb44f3d"
+        name:
+          type: string
+          description: Option group name (e.g., Size, Color, Toppings)
+          maxLength: 30
+          example: "Size"
+        values:
+          type: array
+          description: Array of option values - all variants grouped under this option
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OptionValue'
+        description:
+          type: string
+          description: Optional description for the option group
+          maxLength: 255
+          example: "T-shirt size options with price adjustments"
+        is_active:
+          type: boolean
+          description: Whether the entire option group is active
+          default: true
+          example: true
+        archived:
+          type: object
+          properties:
+            isArchived:
+              type: boolean
+              default: false
+            archivedAt:
+              type: string
+              format: date-time
+        audit:
+          type: object
+          properties:
+            createdBy:
+              type: string
+            updatedBy:
+              type: string
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-10-09T08:28:08.209Z"
+        updated_at:
+          type: string
+          format: date-time
+          example: "2025-10-09T09:32:24.891Z"
+        __v:
+          type: number
+          example: 0
+
+paths:
+  # Authentication Endpoints
+  /api/v1/auth/test:
+    get:
+      tags:
+        - Authentication
+      summary: Test auth service
+      description: Check if auth service is working
+      responses:
+        '200':
+          description: Service is working
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Auth service is working"
+
+  /api/v1/auth/fallback/otp/send:
+    post:
+      tags:
+        - Authentication
+      summary: Send OTP
+      description: Send OTP to phone number for authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPSendRequest'
+      responses:
+        '200':
+          description: OTP sent successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "OTP sent successfully"
+                  otp:
+                    type: string
+                    example: "123456"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/fallback/otp/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify OTP
+      description: Verify OTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OTPVerifyRequest'
+      responses:
+        '200':
+          description: OTP verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  accessToken:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                  refreshToken:
+                    type: string
+                    example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        '401':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/auth/pin/setup:
+    post:
+      tags:
+        - Authentication
+      summary: Setup PIN
+      description: Set up PIN for user authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetupPINRequest'
+      responses:
+        '200':
+          description: PIN setup successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "PIN setup successfully"
+
+  /api/v1/auth/pin/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify PIN
+      description: Verify user PIN for authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPINRequest'
+      responses:
+        '200':
+          description: PIN verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+
+  /api/v1/auth/pin/change:
+    post:
+      tags:
+        - Authentication
+      summary: Change PIN
+      description: Change user PIN (requires authentication)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePINRequest'
+      responses:
+        '200':
+          description: PIN changed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "PIN changed successfully"
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get new access token using refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: New access token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  accessToken:
+                    type: string
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Logout
+      description: Invalidate user session and tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        '200':
+          description: Logged out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+
+  /api/v1/auth/verify:
+    post:
+      tags:
+        - Authentication
+      summary: Verify token
+      description: Verify JWT token validity (for API Gateway)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+      responses:
+        '200':
+          description: Token is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  valid:
+                    type: boolean
+                  decoded:
+                    type: object
+
+  /api/v1/auth/users:
+    post:
+      tags:
+        - Authentication
+      summary: Create user (Service-to-service)
+      description: Create a new user (requires service token)
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+
+  # Merchant Endpoints
+  /api/v1/merchant:
+    post:
+      tags:
+        - Merchants
+      summary: Create merchant
+      description: Create a new merchant (requires service token)
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Merchant'
+      responses:
+        '201':
+          description: Merchant created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Merchant'
+
+    get:
+      tags:
+        - Merchants
+      summary: List merchants
+      description: Get list of all merchants (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, active, inactive, suspended]
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            example: 10
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            example: 0
+      responses:
+        '200':
+          description: List of merchants
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Merchant'
+
+  /api/v1/merchant/{merchantId}:
+    get:
+      tags:
+        - Merchants
+      summary: Get merchant
+      description: Get merchant by ID (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+          example: "MERCH_001"
+      responses:
+        '200':
+          description: Merchant details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Merchant'
+        '404':
+          description: Merchant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Merchants
+      summary: Update merchant
+      description: Update merchant information (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+          example: "MERCH_001"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Merchant'
+      responses:
+        '200':
+          description: Merchant updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    $ref: '#/components/schemas/Merchant'
+
+  /api/v1/merchant/{merchantId}/lifecycle:
+    get:
+      tags:
+        - Merchants
+      summary: Get merchant lifecycle
+      description: Get merchant lifecycle status (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merchant lifecycle status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+
+  /api/v1/merchant/{merchantId}/sync:
+    post:
+      tags:
+        - Merchants
+      summary: Sync with Talus
+      description: Sync merchant data with Talus (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sync successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+
+  /api/v1/merchant/{merchantId}/onboarding:
+    post:
+      tags:
+        - Merchants
+      summary: Update onboarding step
+      description: Update merchant onboarding step (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                step:
+                  type: string
+                  example: "business_info_completed"
+                completed:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Onboarding step updated
+
+  /api/v1/merchant/{merchantId}/devices/bind:
+    post:
+      tags:
+        - Merchants
+      summary: Bind device to merchant
+      description: Bind a device to merchant (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                  example: "DEVICE_ABC123XYZ"
+      responses:
+        '200':
+          description: Device bound successfully
+
+  /api/v1/merchant/{merchantId}/devices/unbind:
+    post:
+      tags:
+        - Merchants
+      summary: Unbind device from merchant
+      description: Unbind a device from merchant (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchantId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                  example: "DEVICE_ABC123XYZ"
+      responses:
+        '200':
+          description: Device unbound successfully
+
+  # Device Endpoints
+  /api/v1/device:
+    get:
+      tags:
+        - Devices
+      summary: List devices
+      description: Get list of all devices (requires service token)
+      security:
+        - ServiceToken: []
+      responses:
+        '200':
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  /api/v1/device/{deviceId}:
+    get:
+      tags:
+        - Devices
+      summary: Get device
+      description: Get device by ID (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+
+  /api/v1/device/{deviceId}/status:
+    get:
+      tags:
+        - Devices
+      summary: Get device status
+      description: Get current status of device (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device status
+
+  /api/v1/device/{deviceId}/metadata:
+    put:
+      tags:
+        - Devices
+      summary: Update device metadata
+      description: Update device metadata (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+          example: "DEVICE_ABC123XYZ"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceInfo:
+                  type: object
+                  properties:
+                    model:
+                      type: string
+                      example: "iPad Pro 12.9 (2024)"
+                    manufacturer:
+                      type: string
+                      example: "Apple"
+                    os_version:
+                      type: string
+                      example: "iOS 17.2"
+                    app_version:
+                      type: string
+                      example: "1.0.5"
+                    serial_number:
+                      type: string
+                      example: "ABC123XYZ789"
+      responses:
+        '200':
+          description: Metadata updated
+
+  /api/v1/device/{deviceId}/health:
+    put:
+      tags:
+        - Devices
+      summary: Update device health
+      description: Update device health status (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+          example: "DEVICE_ABC123XYZ"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                health:
+                  type: object
+                  properties:
+                    battery_level:
+                      type: number
+                      example: 85
+                    storage_available:
+                      type: number
+                      example: 128.5
+                    memory_available:
+                      type: number
+                      example: 2.5
+                    last_sync:
+                      type: string
+                      format: date-time
+                      example: "2024-10-07T12:00:00.000Z"
+                    network_status:
+                      type: string
+                      enum: [online, offline, degraded]
+                      example: "online"
+                    errors:
+                      type: array
+                      items:
+                        type: string
+                      example: []
+      responses:
+        '200':
+          description: Health updated
+
+  /api/v1/device/{deviceId}/block:
+    post:
+      tags:
+        - Devices
+      summary: Block device
+      description: Block a device (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device blocked
+
+  /api/v1/device/{deviceId}/deactivate:
+    post:
+      tags:
+        - Devices
+      summary: Deactivate device
+      description: Deactivate a device (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device deactivated
+
+  /api/v1/device/{deviceId}/activate:
+    post:
+      tags:
+        - Devices
+      summary: Activate device
+      description: Activate a device (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device activated
+
+  /api/v1/device/{deviceId}/assign:
+    post:
+      tags:
+        - Devices
+      summary: Assign device to location
+      description: Assign device to a location (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: deviceId
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                locationId:
+                  type: string
+                  example: "LOCATION_123"
+                locationName:
+                  type: string
+                  example: "Main Street Store"
+      responses:
+        '200':
+          description: Device assigned
+
+  # Webhook Endpoints
+  /api/v1/webhook/talus/onboarding:
+    post:
+      tags:
+        - Webhooks
+      summary: Talus onboarding webhook
+      description: Public webhook endpoint for Talus onboarding events
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Webhook processed successfully
+
+  /api/v1/webhook/failed:
+    get:
+      tags:
+        - Webhooks
+      summary: Get failed webhooks
+      description: Get list of failed webhook deliveries (requires service token)
+      security:
+        - ServiceToken: []
+      responses:
+        '200':
+          description: List of failed webhooks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      type: object
+
+  /api/v1/webhook/{webhookId}/retry:
+    post:
+      tags:
+        - Webhooks
+      summary: Retry webhook
+      description: Retry a failed webhook delivery (requires service token)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: webhookId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Webhook retry initiated
+
+  # Catalog Service - Categories
+  /api/v1/catalog/categories:
+    post:
+      tags:
+        - Catalog - Categories
+      summary: Create category
+      description: Create a new category
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - merchant_id
+                - name
+              properties:
+                merchant_id:
+                  type: string
+                  example: "MERCHANT_1234567890"
+                name:
+                  type: string
+                  example: "Hot Beverages"
+                description:
+                  type: string
+                  example: "Coffee, tea, and other hot drinks"
+                parent_category_id:
+                  type: string
+                  nullable: true
+                  example: null
+                sort_order:
+                  type: number
+                  example: 1
+      responses:
+        '201':
+          description: Category created successfully
+
+  /api/v1/catalog/categories/{id}:
+    get:
+      tags:
+        - Catalog - Categories
+      summary: Get category by ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category retrieved successfully
+    put:
+      tags:
+        - Catalog - Categories
+      summary: Update category
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1b1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Hot Beverages (Updated)"
+                description:
+                  type: string
+                  example: "Coffee, tea, and premium hot drinks"
+                parent_category_id:
+                  type: string
+                  nullable: true
+                  example: null
+                sort_order:
+                  type: number
+                  example: 2
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Category updated successfully
+    delete:
+      tags:
+        - Catalog - Categories
+      summary: Delete category
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category deleted successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/categories:
+    get:
+      tags:
+        - Catalog - Categories
+      summary: Get categories by merchant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: parent_category_id
+          schema:
+            type: string
+        - in: query
+          name: is_active
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: Categories retrieved successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/categories/hierarchy:
+    get:
+      tags:
+        - Catalog - Categories
+      summary: Get category hierarchy
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category hierarchy retrieved successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/categories/reorder:
+    post:
+      tags:
+        - Catalog - Categories
+      summary: Reorder categories
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                category_orders:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      category_id:
+                        type: string
+                        example: "60d5ec49f1b2c8b1f8e4e1b1"
+                      sort_order:
+                        type: number
+                        example: 1
+                  example:
+                    - category_id: "60d5ec49f1b2c8b1f8e4e1b1"
+                      sort_order: 1
+                    - category_id: "60d5ec49f1b2c8b1f8e4e1b2"
+                      sort_order: 2
+      responses:
+        '200':
+          description: Categories reordered successfully
+
+  # Catalog Service - Items
+  /api/v1/catalog/items:
+    post:
+      tags:
+        - Catalog - Items
+      summary: Create catalog item
+      description: Create a new catalog item
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - merchant_id
+                - name
+                - sku
+                - base_price
+              properties:
+                merchant_id:
+                  type: string
+                  example: "MERCHANT_1234567890"
+                name:
+                  type: string
+                  example: "Caffe Latte"
+                description:
+                  type: string
+                  example: "Espresso with steamed milk"
+                sku:
+                  type: string
+                  example: "COFFEE-LATTE-001"
+                category_ids:
+                  type: array
+                  items:
+                    type: string
+                  example: ["60d5ec49f1b2c8b1f8e4e1b1"]
+                base_price:
+                  type: number
+                  minimum: 0
+                  example: 4.50
+                pricing_strategy:
+                  type: object
+                  properties:
+                    cash_discount_rate:
+                      type: number
+                      example: 0.04
+                image_url:
+                  type: string
+                  example: "https://example.com/images/latte.jpg"
+                is_active:
+                  type: boolean
+                  example: true
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Item created successfully
+
+  /api/v1/catalog/items/{id}:
+    get:
+      tags:
+        - Catalog - Items
+      summary: Get item by ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item retrieved successfully
+    put:
+      tags:
+        - Catalog - Items
+      summary: Update catalog item
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1d1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Espresso"
+                description:
+                  type: string
+                  example: "Classic Italian espresso"
+                sku:
+                  type: string
+                  example: "COFFEE-ESP-001"
+                category_ids:
+                  type: array
+                  items:
+                    type: string
+                  example: ["650100000000000000000002"]
+                base_price:
+                  type: number
+                  example: 4.75
+                pricing_strategy:
+                  type: object
+                  properties:
+                    cash_discount_rate:
+                      type: number
+                      example: 0.04
+                image_url:
+                  type: string
+                  example: "https://example.com/images/latte-new.jpg"
+                is_active:
+                  type: boolean
+                  example: true
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Item updated successfully
+    delete:
+      tags:
+        - Catalog - Items
+      summary: Delete catalog item
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item deleted successfully
+
+  /api/v1/catalog/items/sku/{sku}:
+    get:
+      tags:
+        - Catalog - Items
+      summary: Get item by SKU
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: sku
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item retrieved successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/items:
+    get:
+      tags:
+        - Catalog - Items
+      summary: Get items by merchant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Items retrieved successfully
+
+  /api/v1/catalog/items/{id}/variants:
+    post:
+      tags:
+        - Catalog - Items
+      summary: Add variant to item
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - sku
+              properties:
+                name:
+                  type: string
+                  example: "Large (16oz)"
+                sku:
+                  type: string
+                  example: "COFFEE-LATTE-001-L"
+                price_adjustment:
+                  type: number
+                  example: 0.50
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Variant added successfully
+
+  /api/v1/catalog/items/{id}/variants/{variant_id}:
+    put:
+      tags:
+        - Catalog - Items
+      summary: Update item variant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1d1"
+        - in: path
+          name: variant_id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1d2"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Large (16oz)"
+                sku:
+                  type: string
+                  example: "COFFEE-LATTE-001-L"
+                price_adjustment:
+                  type: number
+                  example: 0.75
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Variant updated successfully
+    delete:
+      tags:
+        - Catalog - Items
+      summary: Delete item variant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: variant_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Variant deleted successfully
+
+  /api/v1/catalog/items/{id}/modifiers:
+    post:
+      tags:
+        - Catalog - Items
+      summary: Add modifier to item
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - modifier_group_id
+              properties:
+                modifier_group_id:
+                  type: string
+                  example: "60d5ec49f1b2c8b1f8e4e1c1"
+                is_required:
+                  type: boolean
+                  example: false
+      responses:
+        '201':
+          description: Modifier added successfully
+    delete:
+      tags:
+        - Catalog - Items
+      summary: Remove modifier from item
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                modifier_group_id:
+                  type: string
+      responses:
+        '200':
+          description: Modifier removed successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/items/bulk-availability:
+    post:
+      tags:
+        - Catalog - Items
+      summary: Bulk update item availability
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+      responses:
+        '200':
+          description: Items updated successfully
+
+  # Catalog Service - Modifiers
+  /api/v1/catalog/modifiers:
+    post:
+      tags:
+        - Catalog - Modifiers
+      summary: Create modifier group
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - merchant_id
+                - name
+              properties:
+                merchant_id:
+                  type: string
+                  example: "MERCHANT_1234567890"
+                name:
+                  type: string
+                  example: "Milk Options"
+                selection_type:
+                  type: string
+                  enum: [single, multiple]
+                  example: "single"
+                min_selections:
+                  type: number
+                  example: 0
+                max_selections:
+                  type: number
+                  example: 1
+                options:
+                  type: array
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Modifier group created successfully
+
+  /api/v1/catalog/modifiers/{id}:
+    get:
+      tags:
+        - Catalog - Modifiers
+      summary: Get modifier group by ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Modifier group retrieved successfully
+    put:
+      tags:
+        - Catalog - Modifiers
+      summary: Update modifier group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1c1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Milk Options (Updated)"
+                selection_type:
+                  type: string
+                  enum: [single, multiple]
+                  example: "single"
+                min_selections:
+                  type: number
+                  example: 0
+                max_selections:
+                  type: number
+                  example: 1
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Modifier group updated successfully
+    delete:
+      tags:
+        - Catalog - Modifiers
+      summary: Delete modifier group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Modifier group deleted successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/modifiers:
+    get:
+      tags:
+        - Catalog - Modifiers
+      summary: Get modifiers by merchant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Modifiers retrieved successfully
+
+  /api/v1/catalog/modifiers/{id}/options:
+    post:
+      tags:
+        - Catalog - Modifiers
+      summary: Add option to modifier group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: "Oat Milk"
+                price_adjustment:
+                  type: number
+                  example: 0.75
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '201':
+          description: Option added successfully
+
+  /api/v1/catalog/modifiers/{id}/options/{option_id}:
+    put:
+      tags:
+        - Catalog - Modifiers
+      summary: Update modifier option
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1c1"
+        - in: path
+          name: option_id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1c2"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Oat Milk (Premium)"
+                price_adjustment:
+                  type: number
+                  example: 1.00
+                is_available:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Option updated successfully
+    delete:
+      tags:
+        - Catalog - Modifiers
+      summary: Delete modifier option
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: option_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Option deleted successfully
+
+  # Catalog Service - Discounts
+  /api/v1/catalog/discounts:
+    post:
+      tags:
+        - Catalog - Discounts
+      summary: Create discount
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - merchant_id
+                - name
+                - discount_type
+                - value
+                - valid_from
+                - valid_until
+              properties:
+                merchant_id:
+                  type: string
+                  example: "MERCHANT_1234567890"
+                name:
+                  type: string
+                  example: "Happy Hour 20% Off"
+                description:
+                  type: string
+                  example: "20% discount on all items from 3-6 PM"
+                discount_type:
+                  type: string
+                  enum: [percentage, fixed_amount, bogo]
+                  example: "percentage"
+                value:
+                  type: number
+                  example: 20
+                eligibility:
+                  type: object
+                valid_from:
+                  type: string
+                  format: date-time
+                  example: "2024-10-07T15:00:00.000Z"
+                valid_until:
+                  type: string
+                  format: date-time
+                  example: "2024-10-07T18:00:00.000Z"
+                is_active:
+                  type: boolean
+                  example: true
+                priority:
+                  type: number
+                  example: 1
+                can_combine:
+                  type: boolean
+                  example: false
+      responses:
+        '201':
+          description: Discount created successfully
+
+  /api/v1/catalog/discounts/{id}:
+    get:
+      tags:
+        - Catalog - Discounts
+      summary: Get discount by ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discount retrieved successfully
+    put:
+      tags:
+        - Catalog - Discounts
+      summary: Update discount
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1e1"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  example: "Happy Hour 25% Off (Extended)"
+                description:
+                  type: string
+                  example: "25% off all drinks 3-6 PM"
+                discount_type:
+                  type: string
+                  enum: [percentage, fixed_amount, bogo]
+                  example: "percentage"
+                value:
+                  type: number
+                  example: 25
+                valid_from:
+                  type: string
+                  format: date-time
+                  example: "2024-10-07T15:00:00.000Z"
+                valid_until:
+                  type: string
+                  format: date-time
+                  example: "2024-10-07T18:00:00.000Z"
+                is_active:
+                  type: boolean
+                  example: true
+                priority:
+                  type: number
+                  example: 2
+                can_combine:
+                  type: boolean
+                  example: false
+      responses:
+        '200':
+          description: Discount updated successfully
+    delete:
+      tags:
+        - Catalog - Discounts
+      summary: Delete discount
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discount deleted successfully
+
+  /api/v1/catalog/merchants/{merchant_id}/discounts:
+    get:
+      tags:
+        - Catalog - Discounts
+      summary: Get discounts by merchant
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discounts retrieved successfully
+
+  # Catalog Service - Options
+  /api/v1/catalog/options:
+    post:
+      tags:
+        - Catalog - Options
+      summary: Create option group
+      description: Create a new option group with variants
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Option'
+            example:
+              merchant_id: "MERCH_001"
+              name: "Size"
+              description: "T-shirt size options with price adjustments"
+              values:
+                - name: "Small"
+                  sku : "SKU001"
+                  order: 1
+                  price_adjustment: 0
+                  is_active: true
+                - name: "Medium"
+                  sku : "SKU002"
+                  order: 2
+                  price_adjustment: 20
+                  is_active: true
+                - name: "Large"
+                  sku : "SKU003"
+                  order: 3
+                  price_adjustment: 40
+                  is_active: true
+                - name: "X-Large"
+                  sku : "SKU004"
+                  order: 4
+                  price_adjustment: 60
+                  is_active: true
+              is_active: true
+      responses:
+        '201':
+          description: Option group created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Option'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/catalog/options/{id}:
+    get:
+      tags:
+        - Catalog - Options
+      summary: Get option by ID
+      description: Get a specific option by its ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1f1"
+      responses:
+        '200':
+          description: Option retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Option'
+        '404':
+          description: Option not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      tags:
+        - Catalog - Options
+      summary: Update option group
+      description: Update an existing option group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "68e77218464af6dae8a60ca0"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 30
+                  example: "Updated Size"
+                description:
+                  type: string
+                  maxLength: 255
+                  example: "Updated description for sizes"
+                is_active:
+                  type: boolean
+                  example: true
+                audit:
+                  type: object
+                  properties:
+                    updatedBy:
+                      type: string
+                      example: "68e39b604712fd48feb44f3d"
+      responses:
+        '200':
+          description: Option group updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/Option'
+        '404':
+          description: Option group not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags:
+        - Catalog - Options
+      summary: Delete option
+      description: Delete an option
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1f1"
+      responses:
+        '200':
+          description: Option deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Option deleted successfully"
+        '404':
+          description: Option not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/v1/catalog/merchants/{merchant_id}/options:
+    get:
+      tags:
+        - Catalog - Options
+      summary: Get options by merchant
+      description: Get all options for a specific merchant with optional filtering
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+          example: "MERCHANT_1234567890"
+        - in: query
+          name: is_active
+          schema:
+            type: boolean
+          description: Filter by active status
+          example: true
+        - in: query
+          name: search
+          schema:
+            type: string
+          description: Search by name
+          example: "Extra"
+      responses:
+        '200':
+          description: Options retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Option'
+                    example:
+                      - _id: "68e77218464af6dae8a60ca0"
+                        merchant_id: "68e39b604712fd48feb44f3d"
+                        name: "Size"
+                        description: "T-shirt size options with price adjustments"
+                        values:
+                          - _id: "68e77218464af6dae8a60ca1"
+                            name: "Small"
+                            order: 1
+                            price_adjustment: 0
+                            is_active: true
+                          - _id: "68e77218464af6dae8a60ca2"
+                            name: "Medium"
+                            order: 2
+                            price_adjustment: 20
+                            is_active: true
+                          - _id: "68e77218464af6dae8a60ca3"
+                            name: "Large"
+                            order: 3
+                            price_adjustment: 40
+                            is_active: true
+                        is_active: true
+                        created_at: "2025-10-09T08:28:08.209Z"
+                        updated_at: "2025-10-09T09:32:24.891Z"
+                        __v: 0
+                      - _id: "68e77218464af6dae8a60ca4"
+                        merchant_id: "68e39b604712fd48feb44f3d"
+                        name: "Color"
+                        description: "Color options"
+                        values:
+                          - _id: "68e77218464af6dae8a60ca5"
+                            name: "Red"
+                            order: 1
+                            price_adjustment: 0
+                            is_active: true
+                          - _id: "68e77218464af6dae8a60ca6"
+                            name: "Blue"
+                            order: 2
+                            price_adjustment: 0
+                            is_active: true
+                        is_active: true
+                        created_at: "2025-10-09T08:30:15.123Z"
+                        updated_at: "2025-10-09T08:30:15.123Z"
+                        __v: 0
+
+  # Cart Service
+  /api/v1/cart:
+    post:
+      tags:
+        - Cart
+      summary: Get or create cart
+      description: Get or create active cart for customer
+      security:
+        - ServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - merchant_id
+                - customer_id
+              properties:
+                merchant_id:
+                  type: string
+                  example: "MERCHANT_1234567890"
+                customer_id:
+                  type: string
+                  example: "CUSTOMER_987654321"
+                device_id:
+                  type: string
+                  example: "DEVICE_ABC123XYZ"
+      responses:
+        '200':
+          description: Cart retrieved or created successfully
+
+  /api/v1/cart/{id}:
+    get:
+      tags:
+        - Cart
+      summary: Get cart by ID
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart retrieved successfully
+    delete:
+      tags:
+        - Cart
+      summary: Delete cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart deleted successfully
+
+  /api/v1/cart/{id}/items:
+    post:
+      tags:
+        - Cart
+      summary: Add item to cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - catalog_item_id
+                - quantity
+              properties:
+                catalog_item_id:
+                  type: string
+                  example: "60d5ec49f1b2c8b1f8e4e1d1"
+                quantity:
+                  type: number
+                  minimum: 1
+                  example: 2
+                variant:
+                  type: object
+                  properties:
+                    variant_id:
+                      type: string
+                      example: "60d5ec49f1b2c8b1f8e4e1d2"
+                    name:
+                      type: string
+                      example: "Large"
+                    price_adjustment:
+                      type: number
+                      example: 0.5
+                modifiers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      modifier_group_id:
+                        type: string
+                        example: "60d5ec49f1b2c8b1f8e4e1c1"
+                      option_id:
+                        type: string
+                        example: "60d5ec49f1b2c8b1f8e4e1c2"
+                      name:
+                        type: string
+                        example: "Oat Milk"
+                      price_adjustment:
+                        type: number
+                        example: 0.75
+      responses:
+        '201':
+          description: Item added to cart successfully
+
+  /api/v1/cart/{id}/items/{item_id}:
+    put:
+      tags:
+        - Cart
+      summary: Update item quantity
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1a3"
+        - in: path
+          name: item_id
+          required: true
+          schema:
+            type: string
+          example: "60d5ec49f1b2c8b1f8e4e1a4"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: number
+                  minimum: 1
+                  example: 3
+      responses:
+        '200':
+          description: Item quantity updated successfully
+    delete:
+      tags:
+        - Cart
+      summary: Remove item from cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: item_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item removed successfully
+
+  /api/v1/cart/{id}/clear:
+    post:
+      tags:
+        - Cart
+      summary: Clear cart
+      description: Remove all items from cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart cleared successfully
+
+  /api/v1/cart/{id}/payment-method:
+    put:
+      tags:
+        - Cart
+      summary: Change payment method
+      description: Change payment method (affects cash discount calculation)
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_method
+              properties:
+                payment_method:
+                  type: string
+                  enum: [credit, cash]
+                  example: "cash"
+      responses:
+        '200':
+          description: Payment method updated successfully
+
+  /api/v1/cart/{id}/discounts:
+    post:
+      tags:
+        - Cart
+      summary: Apply discount to cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - discount_id
+              properties:
+                discount_id:
+                  type: string
+                  example: "60d5ec49f1b2c8b1f8e4e1e1"
+      responses:
+        '200':
+          description: Discount applied successfully
+
+  /api/v1/cart/{id}/discounts/{discount_id}:
+    delete:
+      tags:
+        - Cart
+      summary: Remove discount from cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: discount_id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Discount removed successfully
+
+  /api/v1/cart/{id}/applicable-discounts:
+    get:
+      tags:
+        - Cart
+      summary: Get applicable discounts
+      description: Get applicable discounts for cart
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Applicable discounts retrieved successfully
+
+  /api/v1/cart/{id}/checkout:
+    post:
+      tags:
+        - Cart
+      summary: Checkout cart
+      description: Checkout cart (changes status to 'checked_out')
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart checked out successfully
+
+  /api/v1/cart/{id}/abandon:
+    post:
+      tags:
+        - Cart
+      summary: Abandon cart
+      description: Abandon cart (changes status to 'abandoned')
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cart abandoned successfully
+
+  /api/v1/cart/history/{merchant_id}/{customer_id}:
+    get:
+      tags:
+        - Cart
+      summary: Get customer cart history
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: merchant_id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: customer_id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, checked_out, abandoned]
+      responses:
+        '200':
+          description: Cart history retrieved successfully
+
+  /api/v1/catalog/options/{id}/values:
+    post:
+      tags:
+        - Catalog - Options
+      summary: Add a new option value
+      description: Add a new value to an option group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Option group ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  maxLength: 30
+                  example: "X-Large"
+                sku:
+                  type: string
+                  maxLength: 30
+                  example: "SKU001"
+                order:
+                  type: number
+                  default: 0
+                  example: 4
+                price_adjustment:
+                  type: number
+                  default: 0
+                  minimum: 0
+                  example: 7.50
+                is_active:
+                  type: boolean
+                  default: true
+                  example: true
+      responses:
+        '201':
+          description: Option value added successfully
+        '400':
+          description: Bad request
+        '404':
+          description: Option group not found
+
+  /api/v1/catalog/options/{id}/values/{valueId}:
+    put:
+      tags:
+        - Catalog - Options
+      summary: Update option value
+      description: Update an existing option value
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Option group ID
+        - in: path
+          name: valueId
+          required: true
+          schema:
+            type: string
+          description: Option value ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  maxLength: 30
+                  example: "X-Large Updated"
+                sku:
+                  type: string
+                  maxLength: 30
+                  example: "SKU001"
+                order:
+                  type: number
+                  example: 4
+                price_adjustment:
+                  type: number
+                  minimum: 0
+                  example: 7.50
+                is_active:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Option value updated successfully
+        '400':
+          description: Bad request
+        '404':
+          description: Option group or value not found
+    delete:
+      tags:
+        - Catalog - Options
+      summary: Delete option value
+      description: Delete an option value from an option group
+      security:
+        - ServiceToken: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Option group ID
+        - in: path
+          name: valueId
+          required: true
+          schema:
+            type: string
+          description: Option value ID
+      responses:
+        '200':
+          description: Option value deleted successfully
+        '400':
+          description: Bad request (cannot delete last option value)
+        '404':
+          description: Option group or value not found
